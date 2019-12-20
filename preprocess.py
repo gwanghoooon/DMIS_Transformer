@@ -1,6 +1,7 @@
 import spacy
 import torchtext
-from torchtext.data import Field, BucketIterator, TabularDataset
+from torchtext.data import Field, BucketIterator, TabularDataset, Dataset
+
 import pandas as pd
 from sklearn.model_selection import train_test_split
 import dill
@@ -52,10 +53,10 @@ def data_tokenize_save():
     data_fields = [('EN', EN_TEXT), ('DE', DE_TEXT)]
     train,val = TabularDataset.splits(path='data/en-de', train='train.csv', validation='val.csv', format='csv', fields=data_fields)
 
-    with open('data/en-de/train.Field', 'wb') as f:
-        dill.dump(train, f)
-    with open('data/en-de/val.Field', 'wb') as f:
-        dill.dump(val, f)
+    with open('data/en-de/train.dill', 'wb') as f:
+        dill.dump(train.examples, f)
+    with open('data/en-de/val.dill', 'wb') as f:
+        dill.dump(val.examples, f)
 
     return train,val
 
@@ -74,10 +75,13 @@ else:
     
     print('data loading...')
 
-    with open('data/en-de/train.Field', 'rb') as f:
-        train = dill.load(f) 
-    with open('data/en-de/val.Field', 'rb') as f:
-        val = dill.load(f) 
+    data_fields = [('EN', EN_TEXT), ('DE', DE_TEXT)]
+    train,val = TabularDataset.splits(path='data/en-de', train='train_dummy.csv', validation='val_dummy.csv', format='csv', fields=data_fields)
+
+    with open('data/en-de/train.dill', 'rb') as f:
+        train.examples = dill.load(f) 
+    with open('data/en-de/val.dill', 'rb') as f:
+        val.examples = dill.load(f) 
 
 print('build vocab...')
 
