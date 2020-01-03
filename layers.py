@@ -18,7 +18,13 @@ def position_encoding_init(emb_dim, n_position = 82 ):
 
     return torch.from_numpy(position_enc).type(torch.FloatTensor)
 
-def attention(q, k, v, d_k):
+def attention(q, k, v, d_k, mask = None):
+
+    #dropout?
+
+    if mask is not None:
+        mask = mask.unsqueeze(1)
+        scores = scores.masked_fill_(mask, -1e9) # true일때 -1e9로 설정
 
     scores = torch.matmul(q, k.transpose(-2,-1))
     scores = F.softmax(scores, dim=-1)
@@ -48,8 +54,6 @@ class MultiHeadAttention(nn.module):
 
         super().__init__()
 
-        # linear 들어가기 전 relu 태우기
-
         self.num_h = num_h
         self.emb_dim = emb_dim
         self.d_k = emb_dim / num_h
@@ -58,12 +62,10 @@ class MultiHeadAttention(nn.module):
         self.linear_k = nn.Linear(emb_dim,emb_dim)
         self.linear_v = nn.Linear(emb_dim,emb_dim)
 
-        # linear 후 normalize, dropout
-
         self.linear_o = nn.Linear(emb_dim,emb_dim)
 
 
-    def forward(self, q, k, v):
+    def forward(self, q, k, v, mask):
 
         batchSize = q.size(0)
 
@@ -75,7 +77,7 @@ class MultiHeadAttention(nn.module):
         k = k.view(batchSize, -1, self.num_h, self.d_k).transpose(1,2) # split head
         v = v.view(batchSize, -1, self.num_h, self.d_k).transpose(1,2) # split head
 
-        o = attention(q, k, v, self.d_k) # self attention
+        o = attention(q, k, v, self.d_k, mask) # self attention
 
         o = o.transpose(1,2).contiguous().view(batchSize, -1, self.emb_dim) # concat
 
@@ -86,18 +88,19 @@ class MultiHeadAttention(nn.module):
 
 class FeedForward(nn.module):
 
-    def __init__(self,emb_dim,ff_dim = 2048):
+    def __init__(self,emb_dim,ff_dim = 2048, dropout = 0.1):
 
         super().__init__()
 
         self.linear_1 = nn.Linear(emb_dim,ff_dim)
+        self.dropout = nn.Dropout(dropout)
         self.linear_2 = nn.Linear(ff_dim,emb_dim)
-        # dropout
 
     def forward(self,x,e_output,mask):
 
         x = self.linear_1(x)
         x = F.relu(x)
+        x = self.dropout(x)
         x = self.linear_2(x)
 
         return x
@@ -110,7 +113,6 @@ class Norm(nn.Module):
         super().__init__()
     
         self.size = emb_dim
-        # create two learnable parameters to calibrate normalisation
         self.alpha = nn.Parameter(torch.ones(self.size))
         self.bias = nn.Parameter(torch.zeros(self.size))
         self.eps = eps
